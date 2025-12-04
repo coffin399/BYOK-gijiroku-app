@@ -4,12 +4,15 @@ import { useState, useCallback, useEffect } from 'react';
 import { Mic, MonitorSpeaker, Radio, Play, Pause, Square, Loader2, AlertCircle, Wand2, CheckCircle2, Server } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
-import { RecordingSource, MeetingMinutes } from '@/types';
-import { transcribeWithKotobaWhisper, transcribeWithWhisper, performSpeakerDiarization, generateMeetingSummary } from '@/lib/ai-service';
+import { useRealtimeTranscription } from '@/hooks/useRealtimeTranscription';
+import { RecordingSource, MeetingMinutes, Transcript, TranscriptSegment, Speaker } from '@/types';
+import { generateMeetingSummary } from '@/lib/ai-service';
 import { saveAudio } from '@/lib/audio-storage';
 import { v4 as uuidv4 } from 'uuid';
 import { AudioDeviceSelector } from './AudioDeviceSelector';
+import { RealtimeTranscript } from './RealtimeTranscript';
 import { startCapture, stopCapture, isBackendCaptureAvailable } from '@/lib/audio-capture-api';
+import { processAudio, waitForProcessing, checkBackendHealth, ProcessingResult, ProcessingStatus } from '@/lib/backend-api';
 
 function formatDuration(seconds: number): string {
   const hrs = Math.floor(seconds / 3600);
@@ -48,6 +51,18 @@ export function RecordingPanel() {
     pauseRecording,
     resumeRecording,
   } = useAudioRecorder();
+
+  // リアルタイム文字起こし
+  const {
+    isListening: isRealtimeListening,
+    transcript: realtimeTranscript,
+    interimTranscript,
+    error: realtimeError,
+    isSupported: isRealtimeSupported,
+    startListening,
+    stopListening,
+    clearTranscript,
+  } = useRealtimeTranscription();
 
   // マイクの権限状態を確認
   useEffect(() => {
@@ -109,6 +124,9 @@ export function RecordingPanel() {
   }, []);
 
   const handleStartRecording = useCallback(async () => {
+    // リアルタイム文字起こしをクリア＆開始
+    clearTranscript();
+    
     // バックエンドキャプチャモード
     if (useBackendCapture && (selectedDevices.length > 0 || networkPort)) {
       try {
@@ -119,6 +137,11 @@ export function RecordingPanel() {
         });
         setBackendSessionId(sessionId);
         setBackendRecording(true);
+        
+        // リアルタイム文字起こしを開始（マイクがある場合）
+        if (isRealtimeSupported && !useWasapiLoopback) {
+          startListening();
+        }
         return;
       } catch (err) {
         alert(err instanceof Error ? err.message : 'バックエンドでの録音開始に失敗しました');
@@ -136,9 +159,17 @@ export function RecordingPanel() {
       }
     }
     await startRecording(selectedSource);
-  }, [startRecording, selectedSource, permissionStatus, requestMicPermission, useBackendCapture, selectedDevices, useWasapiLoopback, networkPort]);
+    
+    // リアルタイム文字起こしを開始
+    if (isRealtimeSupported) {
+      startListening();
+    }
+  }, [startRecording, selectedSource, permissionStatus, requestMicPermission, useBackendCapture, selectedDevices, useWasapiLoopback, networkPort, clearTranscript, startListening, isRealtimeSupported]);
 
   const handleStopRecording = useCallback(async () => {
+    // リアルタイム文字起こしを停止
+    stopListening();
+    
     let blob: Blob | null = null;
     let recordingDuration = duration;
 
@@ -184,41 +215,97 @@ export function RecordingPanel() {
     setIsProcessing(true);
 
     try {
-      // Step 1: Transcribe with kotoba-whisper (preferred) or OpenAI Whisper
-      setProcessingStep('🎤 音声を文字起こし中...');
+      // バックエンドが利用可能かチェック
+      const backendHealthy = await checkBackendHealth();
       
+      let transcript: Transcript;
       let transcriptText: string;
-      let segments: Array<{ start: number; end: number; text: string }> = [];
-
-      if (hfKey) {
-        // Use kotoba-whisper for Japanese
-        const result = await transcribeWithKotobaWhisper(blob, hfKey);
-        transcriptText = result.text;
-        segments = result.chunks.map(c => ({
-          start: c.timestamp[0],
-          end: c.timestamp[1],
-          text: c.text,
-        }));
-      } else if (openaiKey) {
-        // Fallback to OpenAI Whisper
-        const result = await transcribeWithWhisper(blob, openaiKey);
-        transcriptText = result.text;
-        segments = result.segments;
-      } else {
-        throw new Error('音声認識に必要なAPIキーがありません。');
-      }
-
-      // Step 2: Speaker Diarization
-      setProcessingStep('👥 話者を識別中...');
       
-      const transcript = await performSpeakerDiarization(
-        transcriptText,
-        segments,
-        settings.selectedProvider,
-        llmKey || '',
-        settings.selectedModel,
-        settings.localLLM
-      );
+      if (backendHealthy) {
+        // ===== バックエンド処理モード（推奨） =====
+        // pyannote.audioによる音声ベース話者識別を使用
+        
+        // Step 1: バックエンドに音声を送信して処理開始
+        setProcessingStep('🎤 音声を文字起こし中... (kotoba-whisper)');
+        const { taskId } = await processAudio(blob, {
+          language: 'ja',
+          hfToken: hfKey,
+        });
+        
+        // Step 2: 処理完了を待機（プログレス更新）
+        const result = await waitForProcessing(taskId, (status: ProcessingStatus) => {
+          if (status.progress <= 30) {
+            setProcessingStep('🎤 音声を文字起こし中... (kotoba-whisper)');
+          } else if (status.progress <= 70) {
+            setProcessingStep('👥 話者を識別中... (pyannote.audio)');
+          } else {
+            setProcessingStep('🔗 結果を統合中...');
+          }
+        });
+        
+        // 結果を変換
+        transcriptText = result.text;
+        const speakers: Speaker[] = result.speakers.map((s, i) => ({
+          id: s.id,
+          name: s.name,
+          color: s.color,
+        }));
+        
+        const segments: TranscriptSegment[] = result.segments.map(seg => ({
+          id: uuidv4(),
+          speakerId: seg.speaker_id,
+          text: seg.text,
+          startTime: seg.start,
+          endTime: seg.end,
+        }));
+        
+        transcript = {
+          speakers,
+          segments,
+        };
+        
+      } else {
+        // ===== フォールバック：フロントエンドのみで処理 =====
+        // LLMベースの話者識別（精度は低い）
+        setProcessingStep('⚠️ バックエンド未接続 - 簡易モードで処理中...');
+        
+        // Hugging Face APIで文字起こし
+        if (!hfKey && !openaiKey) {
+          throw new Error('音声認識に必要なAPIキーがありません。');
+        }
+        
+        // 簡易的な文字起こし（話者識別なし）
+        const { transcribeWithKotobaWhisper, transcribeWithWhisper, performSpeakerDiarization } = await import('@/lib/ai-service');
+        
+        let rawSegments: Array<{ start: number; end: number; text: string }> = [];
+        
+        if (hfKey) {
+          const result = await transcribeWithKotobaWhisper(blob, hfKey);
+          transcriptText = result.text;
+          rawSegments = result.chunks.map(c => ({
+            start: c.timestamp[0],
+            end: c.timestamp[1],
+            text: c.text,
+          }));
+        } else if (openaiKey) {
+          const result = await transcribeWithWhisper(blob, openaiKey);
+          transcriptText = result.text;
+          rawSegments = result.segments;
+        } else {
+          throw new Error('音声認識に必要なAPIキーがありません。');
+        }
+        
+        // LLMベースの話者識別（フォールバック）
+        setProcessingStep('👥 話者を識別中... (LLM推定)');
+        transcript = await performSpeakerDiarization(
+          transcriptText,
+          rawSegments,
+          settings.selectedProvider,
+          llmKey || '',
+          settings.selectedModel,
+          settings.localLLM
+        );
+      }
 
       // Step 3: Generate Summary
       setProcessingStep('📋 議事録を生成中...');
@@ -262,7 +349,7 @@ export function RecordingPanel() {
       setIsProcessing(false);
       setProcessingStep('');
     }
-  }, [stopRecording, settings, duration, addMinutes, setActiveTab, setCurrentMinutes, setIsProcessing, backendRecording, backendSessionId, backendDuration]);
+  }, [stopRecording, stopListening, settings, duration, addMinutes, setActiveTab, setCurrentMinutes, setIsProcessing, backendRecording, backendSessionId, backendDuration]);
 
   // 現在録音中かどうか（ブラウザまたはバックエンド）
   const isCurrentlyRecording = isRecording || backendRecording;
@@ -585,6 +672,16 @@ export function RecordingPanel() {
               </div>
             )}
           </div>
+
+          {/* Realtime Transcript */}
+          <RealtimeTranscript
+            isListening={isRealtimeListening}
+            transcript={realtimeTranscript}
+            interimTranscript={interimTranscript}
+            error={realtimeError}
+            isSupported={isRealtimeSupported}
+            isRecording={isCurrentlyRecording}
+          />
 
           {/* Info */}
           <div className="p-5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)]">
