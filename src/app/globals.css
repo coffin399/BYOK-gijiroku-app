@@ -1,0 +1,316 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* NotebookLM風カラーパレット */
+  --bg-primary: #131314;
+  --bg-secondary: #1e1f20;
+  --bg-tertiary: #282a2c;
+  --bg-elevated: #303134;
+  --surface-hover: #3c4043;
+  --text-primary: #e3e3e3;
+  --text-secondary: #9aa0a6;
+  --text-muted: #5f6368;
+  --accent-primary: #a8c7fa;
+  --accent-secondary: #7cacf8;
+  --accent-purple: #c58af9;
+  --accent-glow: rgba(168, 199, 250, 0.15);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', 'Noto Sans JP', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar - NotebookLM style */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surface-hover);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* NotebookLM風背景 */
+.bg-notebook {
+  background: 
+    radial-gradient(ellipse 100% 100% at 50% -20%, rgba(168, 199, 250, 0.08), transparent 50%),
+    radial-gradient(ellipse 80% 50% at 100% 50%, rgba(197, 138, 249, 0.05), transparent 50%),
+    var(--bg-primary);
+}
+
+.bg-surface {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.bg-surface-elevated {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+}
+
+/* カードスタイル */
+.card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  transition: all 0.2s ease;
+}
+
+.card:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-tertiary);
+}
+
+.card-interactive {
+  cursor: pointer;
+}
+
+.card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+/* ボタンスタイル */
+.btn-primary {
+  @apply px-5 py-2.5 rounded-full font-medium transition-all duration-200;
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+}
+
+.btn-primary:hover {
+  background: var(--accent-secondary);
+  box-shadow: 0 4px 12px rgba(168, 199, 250, 0.25);
+}
+
+.btn-secondary {
+  @apply px-5 py-2.5 rounded-full font-medium transition-all duration-200;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
+}
+
+.btn-ghost {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* 入力フィールド */
+.input-field {
+  @apply w-full px-4 py-3 rounded-xl transition-all duration-200 outline-none;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.input-field:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.input-field::placeholder {
+  color: var(--text-muted);
+}
+
+/* 録音アニメーション */
+.recording-pulse {
+  animation: recording-pulse 2s ease-in-out infinite;
+}
+
+@keyframes recording-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 16px rgba(239, 68, 68, 0);
+  }
+}
+
+/* オーディオウェーブ */
+.audio-wave {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+}
+
+.audio-wave-bar {
+  width: 4px;
+  background: linear-gradient(to top, var(--accent-primary), var(--accent-purple));
+  border-radius: 2px;
+  animation: wave 1s ease-in-out infinite;
+}
+
+.audio-wave-bar:nth-child(1) { animation-delay: 0s; height: 12px; }
+.audio-wave-bar:nth-child(2) { animation-delay: 0.1s; height: 20px; }
+.audio-wave-bar:nth-child(3) { animation-delay: 0.2s; height: 28px; }
+.audio-wave-bar:nth-child(4) { animation-delay: 0.3s; height: 20px; }
+.audio-wave-bar:nth-child(5) { animation-delay: 0.4s; height: 12px; }
+
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.5); opacity: 0.6; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+
+/* フェードイン */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* スタガーアニメーション */
+.stagger > * {
+  animation: staggerIn 0.4s ease-out forwards;
+  opacity: 0;
+}
+
+.stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger > *:nth-child(6) { animation-delay: 0.3s; }
+
+@keyframes staggerIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* タブ */
+.tab-active {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.tab-inactive {
+  color: var(--text-secondary);
+}
+
+.tab-inactive:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* 話者インジケーター */
+.speaker-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* スピナー */
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--bg-tertiary);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* チップ/バッジ */
+.chip {
+  @apply px-3 py-1 rounded-full text-xs font-medium;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.chip-accent {
+  background: rgba(168, 199, 250, 0.15);
+  color: var(--accent-primary);
+}
+
+.chip-purple {
+  background: rgba(197, 138, 249, 0.15);
+  color: var(--accent-purple);
+}
+
+/* トグルスイッチ */
+.toggle {
+  @apply relative w-11 h-6 rounded-full transition-colors duration-200;
+  background: var(--bg-tertiary);
+}
+
+.toggle-active {
+  background: var(--accent-primary);
+}
+
+.toggle-knob {
+  @apply absolute top-1 left-1 w-4 h-4 rounded-full transition-transform duration-200;
+  background: var(--text-primary);
+}
+
+.toggle-active .toggle-knob {
+  transform: translateX(20px);
+  background: var(--bg-primary);
+}
+
+/* セクションタイトル */
+.section-title {
+  @apply text-sm font-medium uppercase tracking-wider;
+  color: var(--text-muted);
+}
+
+/* リストアイテム */
+.list-item {
+  @apply flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200;
+}
+
+.list-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.list-item-active {
+  background: var(--bg-tertiary);
+  border-left: 3px solid var(--accent-primary);
+}

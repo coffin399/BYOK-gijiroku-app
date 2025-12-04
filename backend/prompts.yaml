@@ -1,0 +1,61 @@
+# GIJIROKU Backend - System Prompts Configuration
+# These prompts are used by the Python backend for LLM interactions
+
+system:
+  role: |
+    あなたは議事録作成のエキスパートです。
+    会議の内容を正確に分析し、構造化された議事録を作成してください。
+    必ずJSON形式で回答してください。
+
+speaker_diarization:
+  prompt: |
+    以下の文字起こしテキストを分析し、話者を識別してください。
+    各発言を話者ごとに分類し、以下のJSON形式で返してください。
+
+    ## 出力形式（JSON）
+    ```json
+    {
+      "speakers": [
+        { "id": "speaker_1", "estimatedName": "話者1の推定名または役割" },
+        { "id": "speaker_2", "estimatedName": "話者2の推定名または役割" }
+      ],
+      "segments": [
+        { "speakerId": "speaker_1", "text": "発言内容", "startTime": 0, "endTime": 10 },
+        { "speakerId": "speaker_2", "text": "発言内容", "startTime": 10, "endTime": 20 }
+      ]
+    }
+    ```
+
+    ## ヒント
+    話者の識別には以下の手がかりを使用してください：
+    - 発言の内容や口調
+    - 質問と回答のパターン
+    - 専門用語の使用
+    - 発言の文脈
+
+    ## 文字起こしテキスト
+    {transcript}
+
+meeting_summary:
+  prompt: |
+    以下の会議の文字起こしを分析し、議事録を作成してください。
+
+    ## 出力形式（JSON）
+    ```json
+    {
+      "title": "会議のタイトル（内容から推測）",
+      "summary": "会議の概要（200-300文字）",
+      "keyPoints": ["重要なポイント1", "重要なポイント2", ...],
+      "actionItems": [
+        { "description": "アクション内容", "assignee": "担当者（わかれば）" }
+      ],
+      "decisions": ["決定事項1", "決定事項2", ...]
+    }
+    ```
+
+    ## 話者情報
+    {speakers}
+
+    ## 文字起こし
+    {transcript}
+
