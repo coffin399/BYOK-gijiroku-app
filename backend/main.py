@@ -424,6 +424,72 @@ async def get_available_models():
 
 
 # ============================================
+# Model Download API
+# ============================================
+
+@app.get("/api/models/status")
+async def get_model_status():
+    """モデルのダウンロード状態を取得"""
+    from pathlib import Path
+    
+    whisper_model_path = Path("./models/kotoba-whisper-v2.2-faster/model.bin")
+    
+    return {
+        "whisper": {
+            "id": "kotoba-v2.2",
+            "name": "Kotoba Whisper v2.2",
+            "downloaded": whisper_model_path.exists(),
+            "path": str(whisper_model_path.parent),
+            "size_gb": 10
+        },
+        "diarization": {
+            "id": "pyannote/speaker-diarization-3.1",
+            "name": "Speaker Diarization 3.1",
+            "downloaded": True,  # pyannoteは初回使用時に自動ダウンロード
+            "note": "初回使用時に自動ダウンロード（HFトークン必要）"
+        }
+    }
+
+
+@app.post("/api/models/download/whisper")
+async def download_whisper_model(background_tasks: BackgroundTasks):
+    """kotoba-whisperモデルをダウンロード"""
+    from pathlib import Path
+    
+    model_path = Path("./models/kotoba-whisper-v2.2-faster/model.bin")
+    
+    if model_path.exists():
+        return {"status": "already_downloaded", "message": "モデルは既にダウンロード済みです"}
+    
+    # バックグラウンドでダウンロード
+    background_tasks.add_task(download_whisper_model_task)
+    
+    return {"status": "downloading", "message": "ダウンロードを開始しました。完了までお待ちください（約10GB）"}
+
+
+async def download_whisper_model_task():
+    """kotoba-whisperモデルをダウンロード（バックグラウンドタスク）"""
+    try:
+        from huggingface_hub import snapshot_download
+        from pathlib import Path
+        
+        model_dir = Path("./models/kotoba-whisper-v2.2-faster")
+        
+        logger.info("Starting kotoba-whisper model download...")
+        snapshot_download(
+            repo_id="RoachLin/kotoba-whisper-v2.2-faster",
+            local_dir=model_dir,
+            allow_patterns=["*.bin", "*.json"]
+        )
+        logger.info("kotoba-whisper model download complete!")
+        
+    except ImportError:
+        logger.error("huggingface_hub not installed. Run: pip install huggingface_hub")
+    except Exception as e:
+        logger.error(f"Model download failed: {e}")
+
+
+# ============================================
 # Audio Capture API (Firefox/System Audio Fallback)
 # ============================================
 

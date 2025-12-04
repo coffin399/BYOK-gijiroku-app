@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Key, Check, Bot, Sparkles, Brain, Server, Cpu, Zap, CheckCircle2, XCircle, Send } from 'lucide-react';
+import { Eye, EyeOff, Key, Check, Bot, Sparkles, Brain, Server, Cpu, Zap, CheckCircle2, XCircle, Send, Download, Loader2 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { AI_PROVIDERS, WHISPER_MODELS } from '@/lib/constants';
 import { AIProvider } from '@/types';
-import { checkBackendHealth } from '@/lib/backend-api';
+import { checkBackendHealth, getModelStatus, downloadWhisperModel, ModelStatus } from '@/lib/backend-api';
 import { NetworkAudioSender } from './NetworkAudioSender';
 
 export function SettingsPanel() {
@@ -13,6 +13,9 @@ export function SettingsPanel() {
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [savedKeys, setSavedKeys] = useState<Record<string, boolean>>({});
   const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadMessage, setDownloadMessage] = useState<string | null>(null);
 
   // バックエンドの状態を確認
   useEffect(() => {
@@ -21,12 +24,60 @@ export function SettingsPanel() {
         setBackendStatus('checking');
         const isOnline = await checkBackendHealth();
         setBackendStatus(isOnline ? 'online' : 'offline');
+        
+        // モデル状態も取得
+        if (isOnline) {
+          try {
+            const status = await getModelStatus();
+            setModelStatus(status);
+          } catch {
+            // ignore
+          }
+        }
       }
     }
     checkBackend();
     const interval = setInterval(checkBackend, 10000); // 10秒ごとに確認
     return () => clearInterval(interval);
   }, [settings.backend.enabled, settings.backend.url]);
+
+  // モデルダウンロード
+  const handleDownloadModel = async () => {
+    setIsDownloading(true);
+    setDownloadMessage(null);
+    try {
+      const result = await downloadWhisperModel();
+      setDownloadMessage(result.message);
+      
+      if (result.status === 'downloading') {
+        // ダウンロード開始後、定期的に状態を確認
+        const checkInterval = setInterval(async () => {
+          try {
+            const status = await getModelStatus();
+            setModelStatus(status);
+            if (status.whisper.downloaded) {
+              clearInterval(checkInterval);
+              setIsDownloading(false);
+              setDownloadMessage('✅ ダウンロード完了！');
+            }
+          } catch {
+            // ignore
+          }
+        }, 5000);
+        
+        // 30分後にタイムアウト
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          setIsDownloading(false);
+        }, 30 * 60 * 1000);
+      } else {
+        setIsDownloading(false);
+      }
+    } catch (err) {
+      setDownloadMessage(err instanceof Error ? err.message : 'ダウンロードに失敗しました');
+      setIsDownloading(false);
+    }
+  };
 
   const toggleShowKey = (provider: string) => {
     setShowKeys((prev) => ({ ...prev, [provider]: !prev[provider] }));
@@ -453,6 +504,66 @@ export function SettingsPanel() {
                       >
                         HuggingFaceで詳細を見る →
                       </a>
+                    </div>
+                  </div>
+
+                  {/* Model Download Section */}
+                  <div className="space-y-3">
+                    <label className="section-title">モデルダウンロード</label>
+                    
+                    {/* Whisper Model */}
+                    <div className={`p-4 rounded-xl border ${modelStatus?.whisper.downloaded ? 'bg-green-500/10 border-green-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {modelStatus?.whisper.downloaded ? (
+                            <CheckCircle2 className="w-5 h-5 text-green-400" />
+                          ) : (
+                            <Download className="w-5 h-5 text-amber-400" />
+                          )}
+                          <span className={`text-sm font-medium ${modelStatus?.whisper.downloaded ? 'text-green-400' : 'text-amber-400'}`}>
+                            kotoba-whisper v2.2
+                          </span>
+                        </div>
+                        <span className={`text-xs ${modelStatus?.whisper.downloaded ? 'text-green-400/70' : 'text-amber-400/70'}`}>
+                          ~10GB
+                        </span>
+                      </div>
+                      
+                      {modelStatus?.whisper.downloaded ? (
+                        <p className="text-xs text-green-400/70">
+                          ✅ ダウンロード済み - 音声認識の準備完了
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-xs text-amber-400/70">
+                            日本語音声認識に必要です。初回のみダウンロードが必要です。
+                          </p>
+                          <button
+                            onClick={handleDownloadModel}
+                            disabled={isDownloading}
+                            className="w-full py-2 px-4 rounded-lg bg-amber-500 text-white font-medium text-sm
+                                     hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                                     flex items-center justify-center gap-2"
+                          >
+                            {isDownloading ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                ダウンロード中...
+                              </>
+                            ) : (
+                              <>
+                                <Download className="w-4 h-4" />
+                                モデルをダウンロード
+                              </>
+                            )}
+                          </button>
+                          {downloadMessage && (
+                            <p className={`text-xs ${downloadMessage.includes('✅') ? 'text-green-400' : 'text-amber-400'}`}>
+                              {downloadMessage}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 

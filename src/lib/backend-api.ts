@@ -292,3 +292,51 @@ export async function getAvailableModels(): Promise<{
   return response.json();
 }
 
+/**
+ * モデルのダウンロード状態を取得
+ */
+export interface ModelStatus {
+  whisper: {
+    id: string;
+    name: string;
+    downloaded: boolean;
+    path: string;
+    size_gb: number;
+  };
+  diarization: {
+    id: string;
+    name: string;
+    downloaded: boolean;
+    note: string;
+  };
+}
+
+export async function getModelStatus(): Promise<ModelStatus> {
+  const response = await fetch(`${BACKEND_URL}/api/models/status`);
+
+  if (!response.ok) {
+    throw new Error('モデル状態の取得に失敗しました');
+  }
+
+  return response.json();
+}
+
+/**
+ * kotoba-whisperモデルをダウンロード
+ */
+export async function downloadWhisperModel(): Promise<{
+  status: 'downloading' | 'already_downloaded';
+  message: string;
+}> {
+  const response = await fetch(`${BACKEND_URL}/api/models/download/whisper`, {
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'モデルのダウンロードに失敗しました');
+  }
+
+  return response.json();
+}
+
