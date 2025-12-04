@@ -3,6 +3,17 @@ import { persist } from 'zustand/middleware';
 import { AppState, AIProvider, MeetingMinutes, RecordingState, AppSettings, LocalLLMSettings, BackendSettings } from '@/types';
 import { DEFAULT_SETTINGS } from '@/lib/constants';
 
+// 既存の設定をマイグレーション（backendが未定義の場合にデフォルト値を設定）
+function migrateSettings(settings: Partial<AppSettings>): AppSettings {
+  return {
+    ...DEFAULT_SETTINGS,
+    ...settings,
+    apiKeys: { ...DEFAULT_SETTINGS.apiKeys, ...settings.apiKeys },
+    localLLM: { ...DEFAULT_SETTINGS.localLLM, ...settings.localLLM },
+    backend: { ...DEFAULT_SETTINGS.backend, ...settings.backend },
+  };
+}
+
 export const useStore = create<AppState>()(
   persist(
     (set) => ({
@@ -80,6 +91,15 @@ export const useStore = create<AppState>()(
         settings: state.settings,
         minutes: state.minutes,
       }),
+      // 既存のストレージデータをマイグレーション
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<AppState>;
+        return {
+          ...currentState,
+          ...persisted,
+          settings: migrateSettings(persisted.settings || {}),
+        };
+      },
     }
   )
 );
