@@ -34,3 +34,16 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Python backend
+backend/venv/
+backend/__pycache__/
+backend/services/__pycache__/
+backend/*.pyc
+backend/.env
+
+# Downloaded models (large files)
+backend/models/
+
+# Logs
+*.log
+
