@@ -172,7 +172,7 @@ export const DEFAULT_SETTINGS = {
   backend: {
     enabled: false,
     url: 'http://localhost:8000',
-    whisperModel: 'large-v3',
+    whisperModel: 'kotoba-v2.2',  // kotoba-whisper固定
     useLocalDiarization: true,
   },
   language: 'ja' as const,
@@ -181,12 +181,36 @@ export const DEFAULT_SETTINGS = {
   theme: 'dark' as const,
 };
 
+// kotoba-whisper-v2.2-faster 専用（他のモデルは削除）
 export const WHISPER_MODELS = [
-  { id: 'tiny', name: 'Tiny', description: '最速・低精度 (~1GB VRAM)', vram: 1 },
-  { id: 'base', name: 'Base', description: '高速・低精度 (~1GB VRAM)', vram: 1 },
-  { id: 'small', name: 'Small', description: 'バランス型 (~2GB VRAM)', vram: 2 },
-  { id: 'medium', name: 'Medium', description: '高精度 (~5GB VRAM)', vram: 5 },
-  { id: 'large-v3', name: 'Large-v3', description: '最高精度 (~10GB VRAM)', vram: 10 },
-  { id: 'large-v3-turbo', name: 'Large-v3 Turbo', description: '高速+高精度', vram: 6 },
-  { id: 'kotoba-v2.2', name: 'Kotoba Whisper v2.2', description: '日本語特化モデル', vram: 10 },
+  { 
+    id: 'kotoba-v2.2', 
+    name: 'Kotoba Whisper v2.2', 
+    description: '日本語特化・超高速', 
+    vram: 10,
+    features: [
+      'CTranslate2最適化',
+      '日本語特化',
+      'ホットワード対応',
+      'VADフィルタリング',
+    ]
+  },
 ];
+
+// kotoba-whisper の推奨設定
+export const KOTOBA_WHISPER_CONFIG = {
+  modelId: 'RoachLin/kotoba-whisper-v2.2-faster',
+  huggingFaceUrl: 'https://huggingface.co/RoachLin/kotoba-whisper-v2.2-faster',
+  recommendedSettings: {
+    chunkLength: 5,
+    conditionOnPreviousText: false,
+    beamSize: 5,
+    language: 'ja',
+  },
+  // よく使うホットワード例
+  exampleHotwords: [
+    '議事録',
+    'アクションアイテム',
+    '決定事項',
+  ],
+};

@@ -3,14 +3,19 @@ fastapi==0.115.5
 uvicorn[standard]==0.32.0
 python-multipart==0.0.12
 
-# Audio Processing
+# Audio Processing - kotoba-whisper-v2.2-faster専用
 faster-whisper==1.0.3
+ctranslate2>=4.0.0
 pyannote.audio==4.0.2
 torch>=2.0.0
 torchaudio>=2.0.0
 pydub==0.25.1
 soundfile==0.12.1
 librosa==0.10.2
+
+# HuggingFace (モデルダウンロード用)
+huggingface-hub>=0.20.0
+tokenizers>=0.15.0
 
 # LLM Integration
 openai==1.54.4
@@ -24,3 +29,6 @@ numpy>=1.24.0
 scipy>=1.11.0
 pyyaml>=6.0.1
 
+# Audio Capture (for Firefox/system audio fallback)
+sounddevice>=0.4.6
+PyAudio>=0.2.14

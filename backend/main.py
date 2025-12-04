@@ -18,6 +18,8 @@ from pydantic import BaseModel
 from services.transcription import TranscriptionService
 from services.diarization import DiarizationService
 from services.summarization import SummarizationService
+from services.audio_capture import get_audio_capture_service, AudioDevice
+from services.audio_sender import get_audio_sender_service
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -119,10 +121,15 @@ async def health_check():
 async def transcribe_audio(
     file: UploadFile = File(...),
     language: str = "ja",
-    model_size: str = "large-v3"
+    hotwords: Optional[str] = None
 ):
     """
-    音声ファイルを文字起こし（faster-whisper使用）
+    音声ファイルを文字起こし（kotoba-whisper-v2.2-faster専用）
+    
+    Args:
+        file: 音声ファイル
+        language: 言語コード（デフォルト: ja）
+        hotwords: ホットワード（カンマ区切り、例: "議事録,アクションアイテム"）
     """
     try:
         # 一時ファイルに保存
@@ -136,7 +143,7 @@ async def transcribe_audio(
             result = await service.transcribe(
                 audio_path=tmp_path,
                 language=language,
-                model_size=model_size
+                hotwords=hotwords
             )
             return JSONResponse(content=result)
         finally:
@@ -146,6 +153,13 @@ async def transcribe_audio(
     except Exception as e:
         logger.error(f"Transcription error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/transcribe/model-info")
+async def get_transcription_model_info():
+    """kotoba-whisperモデルの情報を取得"""
+    service = get_transcription_service()
+    return service.get_model_info()
 
 
 @app.post("/api/diarize")
@@ -380,19 +394,296 @@ async def summarize_transcript(request: SummarizationRequest):
 
 @app.get("/api/models")
 async def get_available_models():
-    """利用可能なモデル一覧"""
+    """利用可能なモデル一覧（kotoba-whisper専用）"""
     return {
         "whisper": [
-            {"id": "tiny", "name": "Tiny", "description": "最速・低精度 (~1GB VRAM)"},
-            {"id": "base", "name": "Base", "description": "高速・低精度 (~1GB VRAM)"},
-            {"id": "small", "name": "Small", "description": "バランス型 (~2GB VRAM)"},
-            {"id": "medium", "name": "Medium", "description": "高精度 (~5GB VRAM)"},
-            {"id": "large-v3", "name": "Large-v3", "description": "最高精度 (~10GB VRAM)"},
-            {"id": "large-v3-turbo", "name": "Large-v3 Turbo", "description": "高速+高精度"},
+            {
+                "id": "kotoba-v2.2",
+                "name": "Kotoba Whisper v2.2",
+                "description": "日本語特化・超高速 (~10GB VRAM)",
+                "model_id": "RoachLin/kotoba-whisper-v2.2-faster",
+                "features": [
+                    "CTranslate2最適化",
+                    "日本語特化",
+                    "ホットワード対応",
+                    "VADフィルタリング",
+                    "単語レベルタイムスタンプ"
+                ],
+                "recommended_settings": {
+                    "chunk_length": 5,
+                    "condition_on_previous_text": False,
+                    "beam_size": 5,
+                    "language": "ja"
+                }
+            }
         ],
         "diarization": [
             {"id": "pyannote/speaker-diarization-3.1", "name": "Speaker Diarization 3.1", "description": "最新版話者識別モデル"}
         ]
+    }
+
+
+# ============================================
+# Audio Capture API (Firefox/System Audio Fallback)
+# ============================================
+
+@app.get("/api/audio/capabilities")
+async def get_audio_capabilities():
+    """
+    オーディオキャプチャの機能を取得
+    WASAPI Loopback対応状況など
+    """
+    service = get_audio_capture_service()
+    return service.get_capabilities()
+
+
+@app.get("/api/audio/devices")
+async def get_audio_devices():
+    """
+    利用可能なオーディオデバイス一覧を取得
+    WASAPI Loopbackデバイス（直接システム音声キャプチャ）も含む
+    """
+    try:
+        service = get_audio_capture_service()
+        devices = service.get_available_devices()
+        
+        return {
+            "devices": [
+                {
+                    "index": d.index,
+                    "name": d.name,
+                    "channels": d.channels,
+                    "sample_rate": d.sample_rate,
+                    "is_loopback": d.is_loopback,
+                    "is_wasapi_loopback": d.is_wasapi_loopback,
+                    "host_api": d.host_api
+                }
+                for d in devices
+            ],
+            "loopback_devices": [
+                {
+                    "index": d.index,
+                    "name": d.name,
+                    "channels": d.channels,
+                    "sample_rate": d.sample_rate,
+                    "is_wasapi_loopback": d.is_wasapi_loopback,
+                    "host_api": d.host_api
+                }
+                for d in service.get_loopback_devices()
+            ],
+            "wasapi_loopback_devices": [
+                {
+                    "index": d.index,
+                    "name": d.name,
+                    "channels": d.channels,
+                    "sample_rate": d.sample_rate,
+                    "host_api": d.host_api
+                }
+                for d in service.get_wasapi_loopback_devices()
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Failed to get audio devices: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/audio/capture/start")
+async def start_audio_capture(
+    session_id: str,
+    device_indices: str,  # comma-separated list: "0,1,2"
+    sample_rate: int = 16000,
+    channels: int = 1,
+    use_wasapi_loopback: bool = False,
+    network_port: Optional[int] = None
+):
+    """
+    オーディオキャプチャを開始
+    複数デバイスからの同時録音に対応
+    
+    Args:
+        session_id: セッションID
+        device_indices: デバイスインデックス（カンマ区切り）
+        sample_rate: サンプルレート（デフォルト16000）
+        channels: チャンネル数（デフォルト1=モノラル）
+        use_wasapi_loopback: WASAPI Loopbackを使用（VB-Cable不要）
+        network_port: ネットワーク経由で音声を受信するポート
+    """
+    try:
+        indices = [int(i.strip()) for i in device_indices.split(",") if i.strip()]
+        
+        service = get_audio_capture_service()
+        await service.start_capture(
+            session_id=session_id,
+            device_indices=indices,
+            sample_rate=sample_rate,
+            channels=channels,
+            use_wasapi_loopback=use_wasapi_loopback,
+            network_port=network_port
+        )
+        
+        return {
+            "status": "recording",
+            "session_id": session_id,
+            "devices": indices,
+            "use_wasapi_loopback": use_wasapi_loopback,
+            "network_port": network_port
+        }
+    except Exception as e:
+        logger.error(f"Failed to start capture: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/audio/capture/stop")
+async def stop_audio_capture(session_id: str):
+    """
+    オーディオキャプチャを停止してWAVデータを返す
+    """
+    try:
+        service = get_audio_capture_service()
+        wav_data = await service.stop_capture(session_id)
+        
+        if wav_data is None:
+            raise HTTPException(status_code=404, detail="Session not found or no data")
+        
+        # Return as base64 for easy handling
+        import base64
+        return {
+            "status": "stopped",
+            "session_id": session_id,
+            "audio_base64": base64.b64encode(wav_data).decode('utf-8'),
+            "format": "wav",
+            "size": len(wav_data)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to stop capture: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/audio/capture/status/{session_id}")
+async def get_capture_status(session_id: str):
+    """キャプチャセッションの状態を取得"""
+    service = get_audio_capture_service()
+    status = service.get_session_status(session_id)
+    
+    if status is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return status
+
+
+# ============================================
+# Network Audio Streaming API
+# ============================================
+
+@app.post("/api/audio/send/start")
+async def start_audio_send(
+    session_id: str,
+    device_index: int,
+    target_host: str,
+    target_port: int,
+    sample_rate: int = 16000,
+    channels: int = 1,
+    use_wasapi_loopback: bool = False
+):
+    """
+    別PCへ音声を送信開始
+    
+    Args:
+        session_id: セッションID
+        device_index: 送信元デバイスインデックス
+        target_host: 送信先PCのIPアドレス
+        target_port: 送信先PCのポート
+        sample_rate: サンプルレート
+        channels: チャンネル数
+        use_wasapi_loopback: WASAPI Loopbackを使用
+    """
+    try:
+        service = get_audio_sender_service()
+        await service.start_sending(
+            session_id=session_id,
+            device_index=device_index,
+            target_host=target_host,
+            target_port=target_port,
+            sample_rate=sample_rate,
+            channels=channels,
+            use_wasapi_loopback=use_wasapi_loopback
+        )
+        
+        return {
+            "status": "sending",
+            "session_id": session_id,
+            "target": f"{target_host}:{target_port}"
+        }
+    except Exception as e:
+        logger.error(f"Failed to start audio send: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/audio/send/stop")
+async def stop_audio_send(session_id: str):
+    """音声送信を停止"""
+    try:
+        service = get_audio_sender_service()
+        result = await service.stop_sending(session_id)
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        return {"status": "stopped", "session_id": session_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to stop audio send: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/audio/send/status/{session_id}")
+async def get_send_status(session_id: str):
+    """音声送信セッションの状態を取得"""
+    service = get_audio_sender_service()
+    status = service.get_session_status(session_id)
+    
+    if status is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return status
+
+
+@app.get("/api/network/info")
+async def get_network_info():
+    """このPCのネットワーク情報を取得（他PCからの接続用）"""
+    import socket
+    
+    hostname = socket.gethostname()
+    
+    # Get all IP addresses
+    ips = []
+    try:
+        for info in socket.getaddrinfo(hostname, None):
+            ip = info[4][0]
+            if not ip.startswith('127.') and ':' not in ip:  # IPv4 only, no localhost
+                if ip not in ips:
+                    ips.append(ip)
+    except:
+        pass
+    
+    # Fallback
+    if not ips:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ips = [s.getsockname()[0]]
+            s.close()
+        except:
+            ips = ["127.0.0.1"]
+    
+    return {
+        "hostname": hostname,
+        "ip_addresses": ips,
+        "default_port": 9999,
+        "connection_string": f"{ips[0]}:9999" if ips else "127.0.0.1:9999"
     }
 
 

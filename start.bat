@@ -18,8 +18,8 @@ if %errorlevel% neq 0 (
     goto start_frontend
 )
 
-:: Start Backend
-echo [INFO] Starting Python backend...
+:: Start Backend Setup
+echo [INFO] Setting up Python backend...
 cd backend
 
 if not exist "venv" (
@@ -29,10 +29,34 @@ if not exist "venv" (
 
 call venv\Scripts\activate.bat
 
-:: Install dependencies quietly
+:: Install dependencies
+echo [INFO] Checking dependencies...
 pip install -r requirements.txt --quiet 2>nul
 
+:: Check and download kotoba-whisper model (first-time setup)
+echo [INFO] Checking kotoba-whisper model...
+if not exist "models\kotoba-whisper-v2.2-faster\model.bin" (
+    echo.
+    echo  ========================================
+    echo   First-time Setup: Downloading Model
+    echo  ========================================
+    echo.
+    echo  kotoba-whisper-v2.2-faster (~10GB)
+    echo  This is required for Japanese speech recognition.
+    echo  Download will start automatically...
+    echo.
+    python setup_model.py
+    if %errorlevel% neq 0 (
+        echo [WARN] Model download may have failed.
+        echo        It will be downloaded on first use.
+    )
+    echo.
+) else (
+    echo [OK] kotoba-whisper model found.
+)
+
 :: Start backend in background
+echo [INFO] Starting backend server...
 start /b python -m uvicorn main:app --host 0.0.0.0 --port 8000 >nul 2>&1
 
 cd ..

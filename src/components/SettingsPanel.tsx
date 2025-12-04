@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Key, Check, Bot, Sparkles, Brain, Smile, Server, Cpu, Zap, CheckCircle2, XCircle } from 'lucide-react';
+import { Eye, EyeOff, Key, Check, Bot, Sparkles, Brain, Smile, Server, Cpu, Zap, CheckCircle2, XCircle, Send } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { AI_PROVIDERS, WHISPER_MODELS } from '@/lib/constants';
 import { AIProvider } from '@/types';
 import { checkBackendHealth } from '@/lib/backend-api';
+import { NetworkAudioSender } from './NetworkAudioSender';
 
 export function SettingsPanel() {
   const { settings, updateSettings, setAPIKey, updateLocalLLM, updateBackend } = useStore();
@@ -485,29 +486,34 @@ export function SettingsPanel() {
                     </div>
                   </div>
 
-                  {/* Whisper Model */}
+                  {/* Whisper Model - kotoba-whisper固定 */}
                   <div className="space-y-2">
-                    <label className="section-title">Whisperモデル</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {WHISPER_MODELS.map((model) => (
-                        <button
-                          key={model.id}
-                          onClick={() => updateBackend({ whisperModel: model.id })}
-                          className={`p-3 rounded-xl text-left transition-all duration-200 ${
-                            settings.backend.whisperModel === model.id
-                              ? 'bg-yellow-500/15 border-yellow-500/30'
-                              : 'bg-[var(--bg-secondary)] border-[var(--border-color)] hover:border-[var(--border-hover)]'
-                          } border`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className={`text-sm font-medium ${settings.backend.whisperModel === model.id ? 'text-yellow-400' : 'text-[var(--text-secondary)]'}`}>
-                              {model.name}
-                            </span>
-                            <span className="text-xs text-[var(--text-muted)]">~{model.vram}GB</span>
-                          </div>
-                          <p className="text-xs text-[var(--text-muted)] mt-1">{model.description}</p>
-                        </button>
-                      ))}
+                    <label className="section-title">音声認識モデル</label>
+                    <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/30">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-green-400">
+                          🎯 Kotoba Whisper v2.2
+                        </span>
+                        <span className="text-xs text-green-400/70">~10GB VRAM</span>
+                      </div>
+                      <p className="text-xs text-green-400/70 mb-3">
+                        日本語特化・超高速（CTranslate2最適化）
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {['日本語特化', 'ホットワード対応', 'VADフィルタ', '単語タイムスタンプ'].map((feature) => (
+                          <span key={feature} className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
+                            {feature}
+                          </span>
+                        ))}
+                      </div>
+                      <a 
+                        href="https://huggingface.co/RoachLin/kotoba-whisper-v2.2-faster" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-xs text-green-400 hover:underline mt-2 inline-block"
+                      >
+                        HuggingFaceで詳細を見る →
+                      </a>
                     </div>
                   </div>
 
@@ -529,7 +535,7 @@ export function SettingsPanel() {
                     <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20">
                       <p className="text-xs text-red-400">
                         バックエンドに接続できません。<br/>
-                        <code className="bg-[var(--bg-tertiary)] px-1 rounded">backend\start_backend.bat</code> を実行してください。
+                        <code className="bg-[var(--bg-tertiary)] px-1 rounded">start.bat</code> を実行してください。
                       </p>
                     </div>
                   )}
@@ -537,6 +543,19 @@ export function SettingsPanel() {
               )}
             </div>
           </section>
+
+          {/* Network Audio Sender */}
+          {settings.backend.enabled && backendStatus === 'online' && (
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Send className="w-5 h-5 text-[var(--accent-primary)]" />
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">ネットワーク音声送信</h2>
+              </div>
+              <div className="p-5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)]">
+                <NetworkAudioSender />
+              </div>
+            </section>
+          )}
 
           {/* Info */}
           <div className="p-5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)]">
