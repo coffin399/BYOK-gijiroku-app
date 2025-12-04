@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 chcp 65001 >nul
 title GIJIROKU - Starting...
 
@@ -9,50 +10,96 @@ echo     Frontend + Backend (Python)
 echo  ========================================
 echo.
 
-:: Check Python for backend
+:: Find Python 3.10 or 3.11 (prefer py launcher, then direct paths)
+set PYTHON_CMD=
+
+:: Try py launcher first (most reliable on Windows)
+where py >nul 2>&1
+if %errorlevel% equ 0 (
+    :: Try Python 3.11 first
+    py -3.11 --version >nul 2>&1
+    if %errorlevel% equ 0 (
+        set PYTHON_CMD=py -3.11
+        echo [OK] Found Python 3.11 via py launcher
+        goto python_found
+    )
+    :: Try Python 3.10
+    py -3.10 --version >nul 2>&1
+    if %errorlevel% equ 0 (
+        set PYTHON_CMD=py -3.10
+        echo [OK] Found Python 3.10 via py launcher
+        goto python_found
+    )
+)
+
+:: Try direct paths for Python 3.11
+if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" (
+    set PYTHON_CMD=%LOCALAPPDATA%\Programs\Python\Python311\python.exe
+    echo [OK] Found Python 3.11 at %PYTHON_CMD%
+    goto python_found
+)
+if exist "C:\Python311\python.exe" (
+    set PYTHON_CMD=C:\Python311\python.exe
+    echo [OK] Found Python 3.11 at %PYTHON_CMD%
+    goto python_found
+)
+
+:: Try direct paths for Python 3.10
+if exist "%LOCALAPPDATA%\Programs\Python\Python310\python.exe" (
+    set PYTHON_CMD=%LOCALAPPDATA%\Programs\Python\Python310\python.exe
+    echo [OK] Found Python 3.10 at %PYTHON_CMD%
+    goto python_found
+)
+if exist "C:\Python310\python.exe" (
+    set PYTHON_CMD=C:\Python310\python.exe
+    echo [OK] Found Python 3.10 at %PYTHON_CMD%
+    goto python_found
+)
+
+:: Fallback: check default python
 where python >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [WARN] Python not found. Backend will not start.
-    echo        Install Python 3.10-3.11 for local speech recognition.
+if %errorlevel% equ 0 (
+    for /f "tokens=2" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
+    for /f "tokens=1,2 delims=." %%a in ("!PYTHON_VERSION!") do (
+        set PYTHON_MAJOR=%%a
+        set PYTHON_MINOR=%%b
+    )
+    
+    if "!PYTHON_MAJOR!"=="3" (
+        if !PYTHON_MINOR! GEQ 10 if !PYTHON_MINOR! LEQ 11 (
+            set PYTHON_CMD=python
+            echo [OK] Found Python !PYTHON_VERSION!
+            goto python_found
+        )
+    )
+    
+    echo [ERROR] Python 3.10 or 3.11 is required. Found Python !PYTHON_VERSION!
+    echo         Please install Python 3.10 or 3.11 from https://www.python.org/downloads/
+    echo         Backend will not start.
     echo.
     goto start_frontend
 )
 
-:: Check Python version (require 3.10-3.11)
-for /f "tokens=2" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
-for /f "tokens=1,2 delims=." %%a in ("%PYTHON_VERSION%") do (
-    set PYTHON_MAJOR=%%a
-    set PYTHON_MINOR=%%b
-)
+echo [ERROR] Python 3.10 or 3.11 not found.
+echo         Please install Python 3.10 or 3.11 from https://www.python.org/downloads/
+echo         Backend will not start.
+echo.
+goto start_frontend
 
-if not "%PYTHON_MAJOR%"=="3" (
-    echo [WARN] Python 3.10-3.11 required. Found Python %PYTHON_VERSION%
-    echo        Backend will not start.
-    echo.
-    goto start_frontend
-)
-
-if %PYTHON_MINOR% LSS 10 (
-    echo [WARN] Python 3.10-3.11 required. Found Python %PYTHON_VERSION%
-    echo        Backend will not start.
-    echo.
-    goto start_frontend
-)
-
-if %PYTHON_MINOR% GTR 11 (
-    echo [WARN] Python 3.10-3.11 recommended. Found Python %PYTHON_VERSION%
-    echo        pyannote.audio may not work correctly with Python 3.12+
-    echo        Continuing anyway...
-    echo.
-)
+:python_found
 
 :: Start Backend Setup
 echo [INFO] Setting up Python backend...
 cd backend
 
 if not exist "venv" (
-    echo [INFO] Creating virtual environment...
-    python -m venv venv
+    echo [INFO] Creating virtual environment with %PYTHON_CMD%...
+    %PYTHON_CMD% -m venv venv
+    if %errorlevel% neq 0 (
+        echo [ERROR] Failed to create virtual environment.
+        cd ..
+        goto start_frontend
+    )
 )
 
 call venv\Scripts\activate.bat
