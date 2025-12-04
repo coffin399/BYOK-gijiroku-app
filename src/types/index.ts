@@ -1,5 +1,5 @@
 // AI Provider Types
-export type AIProvider = 'openai' | 'gemini' | 'anthropic' | 'huggingface' | 'ollama' | 'koboldcpp';
+export type AIProvider = 'openai' | 'gemini' | 'anthropic' | 'ollama' | 'koboldcpp';
 
 export interface AIProviderConfig {
   id: AIProvider;
@@ -21,9 +21,13 @@ export interface APIKeySettings {
   openai?: string;
   gemini?: string;
   anthropic?: string;
-  huggingface?: string;
   ollama?: string;
   koboldcpp?: string;
+}
+
+// Hugging Face Token (pyannote.audioモデルダウンロード用)
+export interface HuggingFaceSettings {
+  token?: string; // pyannote.audioのモデルダウンロードに必要
 }
 
 // Recording Types
@@ -98,6 +102,7 @@ export interface BackendSettings {
   url: string;
   whisperModel: string;
   useLocalDiarization: boolean;
+  hfToken?: string; // pyannote.audioモデルダウンロード用のHugging Faceトークン
 }
 
 // App Settings

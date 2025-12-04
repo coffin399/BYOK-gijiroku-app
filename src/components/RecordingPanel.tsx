@@ -192,16 +192,6 @@ export function RecordingPanel() {
     
     if (!blob) return;
 
-    // Check HuggingFace API key for STT
-    const hfKey = settings.apiKeys.huggingface;
-    const openaiKey = settings.apiKeys.openai;
-    
-    if (!hfKey && !openaiKey) {
-      alert('音声認識にはHugging FaceまたはOpenAIのAPIキーが必要です。設定画面でAPIキーを入力してください。');
-      setActiveTab('settings');
-      return;
-    }
-
     // Check LLM API key (ローカルLLMの場合はAPIキー不要)
     const isLocalLLM = settings.selectedProvider === 'ollama' || settings.selectedProvider === 'koboldcpp';
     const llmKey = settings.apiKeys[settings.selectedProvider];
@@ -223,13 +213,13 @@ export function RecordingPanel() {
       
       if (backendHealthy) {
         // ===== バックエンド処理モード（推奨） =====
-        // pyannote.audioによる音声ベース話者識別を使用
+        // kotoba-whisper + pyannote.audio（完全ローカル動作）
         
         // Step 1: バックエンドに音声を送信して処理開始
         setProcessingStep('🎤 音声を文字起こし中... (kotoba-whisper)');
         const { taskId } = await processAudio(blob, {
           language: 'ja',
-          hfToken: hfKey,
+          hfToken: settings.backend.hfToken, // pyannote.audioモデルダウンロード用
         });
         
         // Step 2: 処理完了を待機（プログレス更新）
@@ -245,7 +235,7 @@ export function RecordingPanel() {
         
         // 結果を変換
         transcriptText = result.text;
-        const speakers: Speaker[] = result.speakers.map((s, i) => ({
+        const speakers: Speaker[] = result.speakers.map((s) => ({
           id: s.id,
           name: s.name,
           color: s.color,
@@ -265,46 +255,9 @@ export function RecordingPanel() {
         };
         
       } else {
-        // ===== フォールバック：フロントエンドのみで処理 =====
-        // LLMベースの話者識別（精度は低い）
-        setProcessingStep('⚠️ バックエンド未接続 - 簡易モードで処理中...');
-        
-        // Hugging Face APIで文字起こし
-        if (!hfKey && !openaiKey) {
-          throw new Error('音声認識に必要なAPIキーがありません。');
-        }
-        
-        // 簡易的な文字起こし（話者識別なし）
-        const { transcribeWithKotobaWhisper, transcribeWithWhisper, performSpeakerDiarization } = await import('@/lib/ai-service');
-        
-        let rawSegments: Array<{ start: number; end: number; text: string }> = [];
-        
-        if (hfKey) {
-          const result = await transcribeWithKotobaWhisper(blob, hfKey);
-          transcriptText = result.text;
-          rawSegments = result.chunks.map(c => ({
-            start: c.timestamp[0],
-            end: c.timestamp[1],
-            text: c.text,
-          }));
-        } else if (openaiKey) {
-          const result = await transcribeWithWhisper(blob, openaiKey);
-          transcriptText = result.text;
-          rawSegments = result.segments;
-        } else {
-          throw new Error('音声認識に必要なAPIキーがありません。');
-        }
-        
-        // LLMベースの話者識別（フォールバック）
-        setProcessingStep('👥 話者を識別中... (LLM推定)');
-        transcript = await performSpeakerDiarization(
-          transcriptText,
-          rawSegments,
-          settings.selectedProvider,
-          llmKey || '',
-          settings.selectedModel,
-          settings.localLLM
-        );
+        // ===== フォールバック：バックエンド未接続 =====
+        // バックエンドが必要なため、エラーを表示
+        throw new Error('バックエンドに接続できません。start.batを実行してバックエンドを起動してください。');
       }
 
       // Step 3: Generate Summary
@@ -355,7 +308,6 @@ export function RecordingPanel() {
   const isCurrentlyRecording = isRecording || backendRecording;
   const currentDuration = backendRecording ? backendDuration : duration;
 
-  const hasRequiredKeys = settings.apiKeys.huggingface || settings.apiKeys.openai;
   const isLocalLLM = settings.selectedProvider === 'ollama' || settings.selectedProvider === 'koboldcpp';
   const hasLLMReady = isLocalLLM || settings.apiKeys[settings.selectedProvider];
 
@@ -514,26 +466,8 @@ export function RecordingPanel() {
             </div>
           )}
 
-          {/* API Key Warning */}
-          {!hasRequiredKeys && (
-            <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
-              <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm text-amber-300 font-medium">音声認識のAPIキーが未設定</p>
-                <p className="text-xs text-amber-400/80 mt-1">
-                  Hugging Face (推奨) またはOpenAIのAPIキーが必要です
-                </p>
-                <button 
-                  onClick={() => setActiveTab('settings')}
-                  className="text-xs text-amber-400 hover:text-amber-300 underline mt-2"
-                >
-                  設定画面でAPIキーを入力 →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {hasRequiredKeys && !hasLLMReady && (
+          {/* LLM Warning */}
+          {!hasLLMReady && (
             <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
               <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
               <div>
@@ -637,7 +571,6 @@ export function RecordingPanel() {
                   onClick={handleStartRecording}
                   disabled={
                     isProcessing || 
-                    !hasRequiredKeys || 
                     !hasLLMReady || 
                     (!useBackendCapture && permissionStatus === 'denied') ||
                     (useBackendCapture && selectedDevices.length === 0 && !networkPort)

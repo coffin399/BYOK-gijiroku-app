@@ -13,9 +13,37 @@ echo.
 where python >nul 2>&1
 if %errorlevel% neq 0 (
     echo [WARN] Python not found. Backend will not start.
-    echo        Install Python 3.10+ for local speech recognition.
+    echo        Install Python 3.10-3.11 for local speech recognition.
     echo.
     goto start_frontend
+)
+
+:: Check Python version (require 3.10-3.11)
+for /f "tokens=2" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
+for /f "tokens=1,2 delims=." %%a in ("%PYTHON_VERSION%") do (
+    set PYTHON_MAJOR=%%a
+    set PYTHON_MINOR=%%b
+)
+
+if not "%PYTHON_MAJOR%"=="3" (
+    echo [WARN] Python 3.10-3.11 required. Found Python %PYTHON_VERSION%
+    echo        Backend will not start.
+    echo.
+    goto start_frontend
+)
+
+if %PYTHON_MINOR% LSS 10 (
+    echo [WARN] Python 3.10-3.11 required. Found Python %PYTHON_VERSION%
+    echo        Backend will not start.
+    echo.
+    goto start_frontend
+)
+
+if %PYTHON_MINOR% GTR 11 (
+    echo [WARN] Python 3.10-3.11 recommended. Found Python %PYTHON_VERSION%
+    echo        pyannote.audio may not work correctly with Python 3.12+
+    echo        Continuing anyway...
+    echo.
 )
 
 :: Start Backend Setup

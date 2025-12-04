@@ -81,7 +81,17 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
   const [audioLevel, setAudioLevel] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [browserSupport] = useState<BrowserSupport>(() => detectBrowserSupport());
+  const [browserSupport, setBrowserSupport] = useState<BrowserSupport>({
+    microphone: false,
+    systemAudio: false,
+    mediaRecorder: false,
+    browserName: 'Unknown',
+  });
+
+  // クライアント側でブラウザ判定を実行（ハイドレーションエラー回避）
+  useEffect(() => {
+    setBrowserSupport(detectBrowserSupport());
+  }, []);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);

@@ -1,6 +1,5 @@
 import OpenAI from 'openai';
 import { GoogleGenAI } from '@google/genai';
-import { HfInference } from '@huggingface/inference';
 import { AIProvider, Transcript, TranscriptSegment, Speaker, MeetingMinutes, LocalLLMSettings } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { SPEAKER_COLORS } from './constants';
@@ -15,52 +14,8 @@ function createGeminiClient(apiKey: string): GoogleGenAI {
   return new GoogleGenAI({ apiKey });
 }
 
-// Hugging Face Client Factory
-function createHFClient(apiKey: string): HfInference {
-  return new HfInference(apiKey);
-}
-
-// Transcribe audio using kotoba-whisper via Hugging Face Inference API
-export async function transcribeWithKotobaWhisper(
-  audioBlob: Blob,
-  apiKey: string
-): Promise<{ text: string; chunks: Array<{ timestamp: [number, number]; text: string }> }> {
-  const hf = createHFClient(apiKey);
-  
-  const result = await hf.automaticSpeechRecognition({
-    model: 'kotoba-tech/kotoba-whisper-v2.2-faster',
-    data: audioBlob,
-  });
-
-  // kotoba-whisperはchunksを返す場合がある
-  const chunks = (result as unknown as { chunks?: Array<{ timestamp: [number, number]; text: string }> }).chunks || [];
-  
-  return {
-    text: result.text,
-    chunks,
-  };
-}
-
-// Transcribe audio using Whisper (OpenAI) - フォールバック用
-export async function transcribeWithWhisper(
-  audioBlob: Blob,
-  apiKey: string
-): Promise<{ text: string; segments: Array<{ start: number; end: number; text: string }> }> {
-  const openai = createOpenAIClient(apiKey);
-
-  const response = await openai.audio.transcriptions.create({
-    file: new File([audioBlob], 'audio.webm', { type: 'audio/webm' }),
-    model: 'whisper-1',
-    language: 'ja',
-    response_format: 'verbose_json',
-    timestamp_granularities: ['segment'],
-  });
-
-  return {
-    text: response.text,
-    segments: (response as unknown as { segments: Array<{ start: number; end: number; text: string }> }).segments || [],
-  };
-}
+// 注意: 音声認識はバックエンドのkotoba-whisper（ローカル動作）で行います
+// Hugging Face APIは不要になりました
 
 // Speaker Diarization prompt
 const SPEAKER_DIARIZATION_PROMPT = `

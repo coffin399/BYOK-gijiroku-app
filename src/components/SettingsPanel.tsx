@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Key, Check, Bot, Sparkles, Brain, Smile, Server, Cpu, Zap, CheckCircle2, XCircle, Send } from 'lucide-react';
+import { Eye, EyeOff, Key, Check, Bot, Sparkles, Brain, Server, Cpu, Zap, CheckCircle2, XCircle, Send } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { AI_PROVIDERS, WHISPER_MODELS } from '@/lib/constants';
 import { AIProvider } from '@/types';
@@ -45,7 +45,6 @@ export function SettingsPanel() {
   };
 
   const providerIcons: Record<string, typeof Bot> = {
-    huggingface: Smile,
     openai: Bot,
     gemini: Sparkles,
     anthropic: Brain,
@@ -53,9 +52,8 @@ export function SettingsPanel() {
     koboldcpp: Cpu,
   };
 
-  // 音声認識とLLM用にプロバイダーを分類
-  const sttProviders = AI_PROVIDERS.filter(p => p.id === 'huggingface' || p.id === 'openai');
-  const cloudLLMProviders = AI_PROVIDERS.filter(p => !p.isLocal && p.id !== 'huggingface');
+  // LLM用にプロバイダーを分類（音声認識はローカル動作のため除外）
+  const cloudLLMProviders = AI_PROVIDERS.filter(p => !p.isLocal);
   const localLLMProviders = AI_PROVIDERS.filter(p => p.isLocal);
 
   return (
@@ -70,86 +68,27 @@ export function SettingsPanel() {
 
       <div className="flex-1 overflow-y-auto p-8">
         <div className="max-w-2xl mx-auto space-y-10 stagger">
-          {/* STT (音声認識) Settings */}
+          {/* STT (音声認識) - ローカル動作のため設定不要 */}
           <section className="space-y-4">
             <div className="flex items-center gap-2 mb-4">
               <Key className="w-5 h-5 text-[var(--accent-primary)]" />
               <h2 className="text-lg font-semibold text-[var(--text-primary)]">音声認識 (STT)</h2>
             </div>
-            <p className="text-sm text-[var(--text-muted)]">
-              日本語特化の<span className="text-[var(--accent-primary)]">kotoba-whisper</span>を推奨
-            </p>
-
-            <div className="space-y-3">
-              {sttProviders.map((provider) => {
-                const Icon = providerIcons[provider.id] || Key;
-                const currentKey = settings.apiKeys[provider.id] || '';
-                const isRecommended = provider.id === 'huggingface';
-                
-                return (
-                  <div
-                    key={provider.id}
-                    className={`
-                      p-5 rounded-2xl transition-all duration-200 card
-                      ${isRecommended ? 'border-[var(--accent-primary)]/30' : ''}
-                    `}
-                  >
-                    <div className="flex items-start justify-between gap-4 mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`
-                          w-10 h-10 rounded-xl flex items-center justify-center
-                          ${isRecommended ? 'bg-[var(--accent-glow)] text-[var(--accent-primary)]' : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]'}
-                        `}>
-                          <Icon className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-medium text-[var(--text-primary)]">{provider.name}</h3>
-                            {isRecommended && (
-                              <span className="chip chip-accent">推奨</span>
-                            )}
-                          </div>
-                          <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                            {provider.id === 'huggingface' ? 'kotoba-whisper-v2.2-faster' : 'Whisper API'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="relative">
-                      <input
-                        type={showKeys[provider.id] ? 'text' : 'password'}
-                        value={currentKey}
-                        onChange={(e) => handleKeyChange(provider.id, e.target.value)}
-                        placeholder={`${provider.name} APIキーを入力`}
-                        className="input-field pr-24"
-                      />
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                        <button
-                          onClick={() => toggleShowKey(provider.id)}
-                          className="p-2 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
-                        >
-                          {showKeys[provider.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                        <button
-                          onClick={() => handleKeySave(provider.id)}
-                          disabled={!currentKey}
-                          className={`
-                            p-2 rounded-lg transition-all duration-200
-                            ${savedKeys[provider.id] 
-                              ? 'bg-[var(--accent-primary)] text-[var(--bg-primary)]' 
-                              : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'
-                            }
-                            disabled:opacity-50
-                          `}
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+            
+            <div className="p-5 rounded-2xl bg-green-500/10 border border-green-500/30">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-green-400" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-green-400">kotoba-whisper v2.2</h3>
+                  <p className="text-xs text-green-400/70">完全ローカル動作・APIキー不要</p>
+                </div>
+              </div>
+              <p className="text-sm text-green-400/80">
+                音声認識は<strong>バックエンドでローカル実行</strong>されます。<br/>
+                インターネット接続は初回のモデルダウンロード時のみ必要です。
+              </p>
             </div>
           </section>
 
@@ -518,17 +457,57 @@ export function SettingsPanel() {
                   </div>
 
                   {/* Diarization */}
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-secondary)]">
-                    <div>
-                      <span className="text-sm font-medium text-[var(--text-primary)]">ローカル話者識別</span>
-                      <p className="text-xs text-[var(--text-muted)]">pyannote.audio使用（HFトークン必要）</p>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-secondary)]">
+                      <div>
+                        <span className="text-sm font-medium text-[var(--text-primary)]">ローカル話者識別</span>
+                        <p className="text-xs text-[var(--text-muted)]">pyannote.audio使用</p>
+                      </div>
+                      <button
+                        onClick={() => updateBackend({ useLocalDiarization: !settings.backend.useLocalDiarization })}
+                        className={`toggle ${settings.backend.useLocalDiarization ? 'toggle-active' : ''}`}
+                      >
+                        <div className="toggle-knob" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => updateBackend({ useLocalDiarization: !settings.backend.useLocalDiarization })}
-                      className={`toggle ${settings.backend.useLocalDiarization ? 'toggle-active' : ''}`}
-                    >
-                      <div className="toggle-knob" />
-                    </button>
+
+                    {settings.backend.useLocalDiarization && (
+                      <div className="space-y-2 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                        <label className="text-sm font-medium text-amber-400">
+                          Hugging Face トークン（初回ダウンロード時のみ必要）
+                        </label>
+                        <p className="text-xs text-amber-400/70 mb-2">
+                          pyannote.audioモデルのダウンロードに必要です。
+                          <a 
+                            href="https://huggingface.co/pyannote/speaker-diarization-3.1" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="underline ml-1"
+                          >
+                            ライセンスに同意
+                          </a>
+                          してからトークンを取得してください。
+                        </p>
+                        <div className="relative">
+                          <input
+                            type={showKeys['hf_token'] ? 'text' : 'password'}
+                            value={settings.backend.hfToken || ''}
+                            onChange={(e) => updateBackend({ hfToken: e.target.value })}
+                            placeholder="hf_xxxxxxxxxxxx"
+                            className="input-field pr-12"
+                          />
+                          <button
+                            onClick={() => toggleShowKey('hf_token')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+                          >
+                            {showKeys['hf_token'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        <p className="text-xs text-amber-400/60">
+                          ※ モデルダウンロード後は不要です。トークンはローカルに保存されます。
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {backendStatus === 'offline' && (

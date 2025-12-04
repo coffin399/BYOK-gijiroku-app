@@ -2,19 +2,6 @@ import { AIProviderConfig } from '@/types';
 
 export const AI_PROVIDERS: AIProviderConfig[] = [
   {
-    id: 'huggingface',
-    name: 'Hugging Face',
-    icon: '🤗',
-    models: [
-      {
-        id: 'kotoba-tech/kotoba-whisper-v2.2-faster',
-        name: 'Kotoba Whisper v2.2',
-        description: '日本語特化の高精度音声認識モデル。',
-        supportsSpeechToText: true,
-      },
-    ],
-  },
-  {
     id: 'openai',
     name: 'OpenAI',
     icon: '🤖',

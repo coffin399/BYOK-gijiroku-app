@@ -44,7 +44,11 @@ kotoba-whisperの文字起こし結果と結合
 「話者1: こんにちは」「話者2: よろしくお願いします」
 ```
 
-> ⚠️ pyannote.audioは[Hugging Faceでライセンスに同意](https://huggingface.co/pyannote/speaker-diarization-3.1)が必要です。
+> ⚠️ **pyannote.audioの初回セットアップ:**
+> 1. [Hugging Faceでライセンスに同意](https://huggingface.co/pyannote/speaker-diarization-3.1)
+> 2. [Hugging Faceトークンを取得](https://huggingface.co/settings/tokens)
+> 3. 設定画面の「Pythonバックエンド」→「Hugging Faceトークン」に入力
+> 4. **モデルダウンロード後はトークン不要**（完全オフライン動作）
 
 ### 📋 議事録自動生成(要ローカルLLM/BYOK)
 - 会議の概要
@@ -96,9 +100,11 @@ kotoba-whisperの文字起こし結果と結合
 
 ### 必要条件
 - Node.js 18以上
-- Python 3.10以上
+- **Python 3.10 または 3.11** （3.12以降は非推奨、pyannote.audioの互換性問題）
 - CUDA対応GPU（推奨、CPUでも動作可）
 - 初回のみインターネット接続（モデルダウンロード用）
+
+> ⚠️ **Python 3.12以降は非推奨**: pyannote.audio 4.0は3.10-3.11での動作が安定しています。
 
 ### インストール
 
@@ -267,11 +273,19 @@ HuggingFace: [RoachLin/kotoba-whisper-v2.2-faster](https://huggingface.co/RoachL
 
 ## 🔒 プライバシー
 
-- **音声認識**: kotoba-whisperで完全ローカル処理
-- **話者識別**: pyannote.audioで完全ローカル処理
+- **音声認識**: kotoba-whisperで完全ローカル処理（APIキー不要）
+- **話者識別**: pyannote.audioで完全ローカル処理（APIキー不要）
 - **要約生成**: Ollamaならローカル、クラウドAIなら直接送信
 - 中間サーバーを経由しないため安全
-- オフライン環境でも動作可能（Ollama使用時）
+- **初回モデルダウンロード後はオフラインで動作可能**（Ollama使用時）
+
+### 🔑 必要なAPIキー・トークン
+
+| 用途 | 必要なもの | 備考 |
+|------|-----------|------|
+| 音声認識 | **不要** | kotoba-whisperがローカル動作 |
+| 話者識別 | **HFトークン（初回のみ）** | pyannote.audioモデルダウンロード用 |
+| 要約生成 | **LLM APIキーまたはOllama** | クラウドAI使用時のみAPIキー必要 |
 
 ## 📄 ライセンス
 
