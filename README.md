@@ -18,8 +18,7 @@
 ### 🗣️ 音声認識
 | モード | エンジン | 特徴 |
 |-------|---------|------|
-| **ローカル（推奨）** | faster-whisper | GPU対応、高速、オフライン動作 |
-| **クラウド** | kotoba-whisper (HF) | 日本語特化 |
+| **ローカル（推奨）** | kotoba-whisper (HF) | GPU対応、超高速、オフライン動作 |
 | **クラウド** | OpenAI Whisper | 高精度、多言語対応 |
 
 ### 👥 話者識別（Speaker Diarization）
