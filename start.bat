@@ -93,13 +93,15 @@ echo [INFO] Setting up Python backend...
 pushd backend
 
 if not exist "venv" (
-    echo [INFO] Creating virtual environment with %PYTHON_CMD%...
-    %PYTHON_CMD% -m venv venv
+    echo [INFO] Creating virtual environment with !PYTHON_CMD!...
+    !PYTHON_CMD! -m venv venv
     if !errorlevel! neq 0 (
         echo [ERROR] Failed to create virtual environment.
+        echo         Error code: !errorlevel!
         popd
         goto start_frontend
     )
+    echo [OK] Virtual environment created.
 )
 
 :: Upgrade pip first

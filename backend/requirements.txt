@@ -6,12 +6,12 @@ python-multipart==0.0.12
 # Audio Processing - kotoba-whisper-v2.2-faster専用
 faster-whisper==1.0.3
 ctranslate2>=4.0.0
-pyannote.audio==4.0.2
+pyannote.audio>=3.1.0,<4.0.0
 torch>=2.0.0,<2.5.0
 torchaudio>=2.0.0,<2.5.0
 pydub==0.25.1
-soundfile==0.12.1
-librosa==0.10.2
+soundfile>=0.12.1
+librosa>=0.10.2
 
 # HuggingFace (モデルダウンロード用)
 huggingface-hub>=0.20.0
