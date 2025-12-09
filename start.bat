@@ -102,15 +102,30 @@ if not exist "venv" (
     )
 )
 
-:: Install dependencies using venv's pip directly
-echo [INFO] Checking dependencies...
-call venv\Scripts\pip.exe install -r requirements.txt --quiet 2>nul
+:: Upgrade pip first
+echo [INFO] Upgrading pip...
+call venv\Scripts\python.exe -m pip install --upgrade pip >nul 2>&1
+
+:: Install PyTorch first (CPU version for faster installation)
+echo [INFO] Installing PyTorch...
+call venv\Scripts\pip.exe install torch==2.4.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cpu >nul 2>&1
 if !errorlevel! neq 0 (
-    echo [WARN] Some dependencies may have failed to install.
+    echo [WARN] PyTorch installation via CPU index failed, trying default...
+    call venv\Scripts\pip.exe install torch torchaudio >nul 2>&1
 )
 
-:: Install huggingface_hub for model download
-call venv\Scripts\pip.exe install huggingface_hub --quiet 2>nul
+:: Install other dependencies
+echo [INFO] Installing other dependencies... (this may take a few minutes)
+call venv\Scripts\pip.exe install -r requirements.txt
+if !errorlevel! neq 0 (
+    echo [ERROR] Failed to install dependencies.
+    echo         Please check your internet connection and try again.
+    echo         You can also try running: backend\venv\Scripts\pip.exe install -r backend\requirements.txt
+    popd
+    goto start_frontend
+)
+
+echo [OK] Dependencies installed successfully.
 
 :: Check and download kotoba-whisper model (first-time setup)
 echo [INFO] Checking kotoba-whisper model...
@@ -137,13 +152,21 @@ if not exist "models\kotoba-whisper-v2.2-faster\model.bin" (
 :: Start backend server using venv's python directly
 echo [INFO] Starting backend server...
 
-:: Create a startup script for the backend
+:: Create a startup script for the backend with proper error handling
 echo @echo off > _run_backend.bat
 echo cd /d "%CD%" >> _run_backend.bat
+echo title GIJIROKU Backend >> _run_backend.bat
+echo echo Starting backend server... >> _run_backend.bat
 echo call venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000 >> _run_backend.bat
+echo if errorlevel 1 ( >> _run_backend.bat
+echo     echo. >> _run_backend.bat
+echo     echo [ERROR] Backend failed to start. >> _run_backend.bat
+echo     echo Press any key to close... >> _run_backend.bat
+echo     pause ^> nul >> _run_backend.bat
+echo ^) >> _run_backend.bat
 
-:: Start backend in a new minimized window
-start /min "GIJIROKU Backend" cmd /c "_run_backend.bat"
+:: Start backend in a new window (not minimized so errors are visible)
+start "GIJIROKU Backend" cmd /c "_run_backend.bat"
 
 :: Wait for backend to start
 echo [INFO] Waiting for backend...
